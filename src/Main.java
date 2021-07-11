@@ -15,10 +15,10 @@ public class Main
     private final static String CELLS_PATH = "C:\\projects\\EnglishCells\\text\\cells.txt";
     private final static String UNKNOWN_PATH = "C:\\projects\\EnglishCells\\text\\unknown.txt";
 
-    public static void main(String[] args) throws FileNotFoundException
+    public static void main(String[] args)
     {
         ArrayList<String> unknownCells = new ArrayList<>();
-        HashMap<String, ArrayList<String>> cells = new HashMap<>();
+        HashMap<String, Atom> cells = new HashMap<>();
         Yaml yaml = new Yaml(new ListConstructor<>(Word.class));
         try(InputStream inputStream = new FileInputStream(new File(YAML_PATH)))
         {
@@ -41,10 +41,20 @@ public class Main
                         int index = line.indexOf('[');
                         if (index >= 0)
                             l = line.substring(0, index).trim();
-                        if (l.contains(w.getKey()))
+                        if (l.toLowerCase().contains(w.getKey().toLowerCase()))
                         {
-                            ArrayList<String> list = cells.computeIfAbsent(w.getKey(), k -> new ArrayList<>());
-                            list.add(line);
+                            Atom atom = cells.get(w.getKey());
+                            if (atom == null)
+                            {
+                                atom = new Atom();
+                                cells.put(w.getKey(), atom);
+                            }
+                            if (atom.list == null)
+                            {
+                                atom.list = new ArrayList<>();
+                                atom.currentCount = w.getcurrent_match_count();
+                            }
+                            atom.list.add(line);
                             found = true;
                         }
                     }
@@ -62,15 +72,26 @@ public class Main
             System.out.println(ex.getMessage());
         }
         // Output the cells.
+        boolean existNewCells = false;
         if (!cells.isEmpty())
         {
             try (OutputStream out = new FileOutputStream(new File(CELLS_PATH)))
             {
                 for (String key : cells.keySet())
                 {
-                    ArrayList<String> list = cells.get(key);
+                    Atom atom = cells.get(key);
+                    ArrayList<String> list = atom.list;
                     if (list == null || list.isEmpty())
                         continue;
+                    if (atom.currentCount != list.size())
+                    {
+                        if (!existNewCells)
+                        {
+                            System.out.println(" -- new words -- ");
+                            existNewCells = true;
+                        }
+                        System.out.println("-> " + key);
+                    }
                     key = "------------- " + key + " -------------" + System.lineSeparator();
                     out.write(key.getBytes());
                     for (String v : list)
@@ -81,7 +102,8 @@ public class Main
                     key = System.lineSeparator();
                     out.write(key.getBytes());
                 }
-            } catch (IOException ex)
+            }
+            catch (IOException ex)
             {
                 System.out.println(ex.getMessage());
             }
@@ -123,5 +145,11 @@ public class Main
         private boolean isRootNode(final Node node) {
             return node.getStartMark().getIndex() == 0;
         }
+    }
+
+    public static class Atom
+    {
+        ArrayList<String> list;
+        int currentCount;
     }
 }
